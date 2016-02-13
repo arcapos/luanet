@@ -1,6 +1,6 @@
 local net = require 'net'
 
-conn = net.connect('www.googlw.com', 'http')
+conn = net.connect('www.google.com', 'http')
 conn:write('GET / HTTP/1.0\n\n')
 page = conn:read(10000)
 print(page)
