@@ -6,7 +6,7 @@ All rights reserved.
 
 # Implementing Network Servers and Clients
 
-## The net module}
+## The net module
 
 The net module is used to implement network servers or clients.
 It supports IPv4, IPV6, and local sockets.
