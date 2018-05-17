@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011 - 2015, Micro Systems Marc Balmer, CH-5073 Gipf-Oberfrick
+ * Copyright (c) 2011 - 2018, Micro Systems Marc Balmer, CH-5073 Gipf-Oberfrick
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,6 +50,21 @@
 #include <lualib.h>
 
 #include "luanet.h"
+
+static ssize_t
+to_read(int fd, void *buf, size_t len, int ms)
+{
+	struct pollfd p;
+	int r;
+
+	p.fd = fd;
+	p.events = POLLIN;
+	p.revents = 0;
+
+	if ((r = poll(&p, 1, ms)) > 0)
+		r = read(fd, buf, len);
+	return r;
+}
 
 static int
 asread(int fd, char **ret, int ms)
@@ -129,7 +144,8 @@ asreadln(int fd, char **ret, int ms)
 			break;
 		default:
 			if (len - nread > 0) {
-				n = read(fd, s, len - nread);
+				/* read one character at a time */
+				n = read(fd, s, 1);
 				nread += n;
 				s += n;
 			} else {
@@ -142,7 +158,7 @@ asreadln(int fd, char **ret, int ms)
 			}
 		}
 	} while (n > 0 && (*ret)[nread - 1] != '\n');
-	(*ret)[nread] = '\0';
+	(*ret)[nread - 1] = '\0';
 	return nread;
 }
 
@@ -267,10 +283,9 @@ luanet_connect(lua_State *L)
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_socktype = SOCK_STREAM;
 		error = getaddrinfo(host, port, &hints, &res0);
-		if (error) {
-			fprintf(stderr, "%s: %s\n", host, gai_strerror(error));
-			return -1;
-		}
+		if (error)
+			return luaL_error(L, "%s: %s\n", host,
+			    gai_strerror(error));
 		fd = -1;
 		for (res = res0; res; res = res->ai_next) {
 			error = getnameinfo(res->ai_addr, res->ai_addrlen, hbuf,
@@ -336,22 +351,30 @@ luanet_print(lua_State *L)
 static int
 luanet_read(lua_State *L)
 {
-	size_t len;
-	int timeout_ms;
+	size_t len, nread;
+	int sock;
+	int timeout;
 	char *buf;
 
-	if (lua_gettop(L) == 2)
-		timeout_ms = luaL_checkinteger(L, 2);
-	else
-		timeout_ms = -1;
+	len = luaL_checkinteger(L, 2);
+	sock = *(int *)luaL_checkudata(L, 1, SOCKET_METATABLE);
 
-	len = asread(*(int *)luaL_checkudata(L, 1, SOCKET_METATABLE),
-	    &buf, timeout_ms);
-	if (len > 0)
-		lua_pushstring(L, buf);
+	if (lua_gettop(L) > 2)
+		timeout = luaL_checkinteger(L, 3);
 	else
+		timeout = -1;
+
+	buf = malloc(len);
+	if (buf == NULL)
 		lua_pushnil(L);
-	free(buf);
+	else {
+		nread = to_read(sock, buf, len, timeout);
+		if (nread > 0)
+			lua_pushlstring(L, buf, nread);
+		else
+			lua_pushnil(L);
+		free(buf);
+	}
 	return 1;
 }
 
