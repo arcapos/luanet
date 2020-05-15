@@ -45,9 +45,9 @@ Write data to the socket.
 
 Write string to the socket and append a newline character.
 
-### sock:read([timeout])
+### sock:read(size [, timeout])
 
-Read data from a socket with an optional timeout in
+Read size bytes from a socket with an optional timeout in
 milliseconds. Returns the data read or nil if the timeout
 expires or an error occured.
 
